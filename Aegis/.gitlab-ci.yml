@@ -1,0 +1,72 @@
+default:
+  image: node:latest
+    
+cache:
+  paths:
+    - node_module/
+    
+stages:
+  - build
+  - deploy
+  
+production:
+  stage: build
+  tags:
+    - wlblock
+  only:
+    - master
+  script:
+    - yarn install
+    - yarn build
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    paths:
+      - dist/
+    expire_in: 1 week
+    
+develop:
+  stage: build
+  tags:
+    - wlblock
+  only:
+    - dev
+  script:
+    - yarn install
+    - yarn build:test
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    paths:
+      - dist/
+    expire_in: 1 week
+
+pro-deploy:
+  stage: deploy
+  tags:
+    - wlblock
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - ssh root@$DEPLOY_SERVER "rm -rf /usr/share/nginx/defi/dist"
+    - scp -r dist root@$DEPLOY_SERVER:/usr/share/nginx/defi/
+  only:
+    - master
+
+dev-deploy:
+  stage: deploy
+  tags:
+    - wlblock
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - ssh root@$DEPLOY_SERVER "rm -rf /usr/share/nginx/defi/test/dist"
+    - scp -r dist root@$DEPLOY_SERVER:/usr/share/nginx/defi/test/
+  only:
+    - dev
